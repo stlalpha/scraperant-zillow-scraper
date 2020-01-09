@@ -63,24 +63,24 @@ ROBOTSTXT_OBEY = False
 
 # Selenium
 # https://github.com/clemfromspace/scrapy-selenium
-PROXY_SERVER = '127.0.0.1:24000'  # Unauthenticated proxy
-SELENIUM_DRIVER_NAME = 'chrome'
-SELENIUM_DRIVER_EXECUTABLE_PATH = which('chromedriver')
-SELENIUM_DRIVER_ARGUMENTS = [
-    'headless',
-    'proxy-server=%s' % PROXY_SERVER,
-    'ignore-certificate-errors'
-]
-SELENIUM_BROWSER_EXECUTABLE_PATH = which('google-chrome')
+# PROXY_SERVER = '127.0.0.1:24000'  # Unauthenticated proxy
+# SELENIUM_DRIVER_NAME = 'chrome'
+# SELENIUM_DRIVER_EXECUTABLE_PATH = which('chromedriver')
+# SELENIUM_DRIVER_ARGUMENTS = [
+#     'headless',
+#     'proxy-server=%s' % PROXY_SERVER,
+#     'ignore-certificate-errors'
+# ]
+# SELENIUM_BROWSER_EXECUTABLE_PATH = which('google-chrome')
 
 # Enable proxies usage
 PROXY_POOL_ENABLED = False
 
 # Enable or disable downloader middlewares
 DOWNLOADER_MIDDLEWARES = {
-    # 'scrapy.downloadermiddlewares.useragent.UserAgentMiddleware': None,
-    # 'scrapy_user_agents.middlewares.RandomUserAgentMiddleware': 400,
-    'scrapy_selenium.SeleniumMiddleware': 800,
+    #'scrapy.downloadermiddlewares.useragent.UserAgentMiddleware': None,
+    #'scrapy_user_agents.middlewares.RandomUserAgentMiddleware': 400,
+    #'scrapy_selenium.SeleniumMiddleware': 800,
     #'scrapy_proxy_pool.middlewares.ProxyPoolMiddleware': 610,
     #'scrapy_proxy_pool.middlewares.BanDetectionMiddleware': 620,
     #'scrapy_splash.SplashCookiesMiddleware': 723,
@@ -88,7 +88,7 @@ DOWNLOADER_MIDDLEWARES = {
     #'scrapy.downloadermiddlewares.httpcompression.HttpCompressionMiddleware': 810,
 }
 
-
+DNSCACHE_ENABLED = False  # For ProxyCrawl
 
 # Enable or disable extensions
 # See https://docs.scrapy.org/en/latest/topics/extensions.html
