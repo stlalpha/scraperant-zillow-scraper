@@ -7,16 +7,8 @@ from ..items import HouseListingItem
 
 class ZillowSpider(scrapy.Spider):
     name = 'zillow'
-    allowed_domains = [
-        "www.zillow.com",
-        "zillow.com",
-        "www.zillowstatic.com",
-        "s.zillowstatic.com",
-    ]
 
     def start_requests(self):
-        #yield scrapy.Request(self.zillow_url)
-        #Selenium request
         yield SeleniumRequest(url=self.zillow_url, callback=self.parse)
 
     def parse(self, response):
@@ -40,30 +32,8 @@ class ZillowSpider(scrapy.Spider):
                     callback=self.parse_item_details,
                     cb_kwargs={'item': item},
                     #screenshot=True,  # Capture screen with selenium
-                    wait_time=1  # Wait for context to be loaded using javascript
+                    wait_time=3  # Wait for context to be loaded using javascript
                 )
-                # Scrapy standard request
-                # yield response.follow(
-                #     #url=self._get_proxied_ulr(item['details_url']),
-                #     url=item['details_url'],
-                #     callback=self.parse_item_details,
-                #     cb_kwargs={'item': item}
-                # )
-                # Splash requests
-                # yield SplashRequest(
-                #     url=item['details_url'],
-                #     callback=self.parse_item_details,
-                #     cb_kwargs={'item':item},
-                #     args={
-                #         # optional; parameters passed to Splash HTTP API
-                #         'wait': 30,
-                #
-                #         # 'url' is prefilled from request url
-                #         # 'http_method' is set to 'POST' for POST requests
-                #         # 'body' is set to request body for POST requests
-                #     },
-                #     endpoint='render.html',  # optional; default is render.html
-                # )
             except Exception as e:
                 continue
 
@@ -87,10 +57,3 @@ class ZillowSpider(scrapy.Spider):
         #     image_file.write(response.meta['screenshot'])
         return item
 
-    def _get_proxied_ulr(self, url):
-        encoded_url = urllib.parse.quote_plus(url, safe='')
-        # Senscrape
-        #proxied_url = 'https://app.zenscrape.com/api/v1/get?url=%s&render=true&premium=&location=na&apikey=7aa28d10-3187-11ea-8e5e-49caa5eb4e83' % encoded_url
-        # Proxy Crawl
-        proxied_url = 'https://api.proxycrawl.com/?token=nzaW1bbXAns4MSpIc8LYYw&ajax_wait=true&url=%s' % encoded_url
-        return proxied_url

@@ -73,19 +73,10 @@ SELENIUM_DRIVER_ARGUMENTS = [
 ]
 SELENIUM_BROWSER_EXECUTABLE_PATH = which('google-chrome')
 
-# Enable proxies usage
-PROXY_POOL_ENABLED = False
 
 # Enable or disable downloader middlewares
 DOWNLOADER_MIDDLEWARES = {
-    # 'scrapy.downloadermiddlewares.useragent.UserAgentMiddleware': None,
-    # 'scrapy_user_agents.middlewares.RandomUserAgentMiddleware': 400,
     'scrapy_selenium.SeleniumMiddleware': 800,
-    #'scrapy_proxy_pool.middlewares.ProxyPoolMiddleware': 610,
-    #'scrapy_proxy_pool.middlewares.BanDetectionMiddleware': 620,
-    #'scrapy_splash.SplashCookiesMiddleware': 723,
-    #'scrapy_splash.SplashMiddleware': 725,
-    #'scrapy.downloadermiddlewares.httpcompression.HttpCompressionMiddleware': 810,
 }
 
 
