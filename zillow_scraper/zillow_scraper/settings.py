@@ -67,9 +67,11 @@ PROXY_SERVER = '127.0.0.1:24000'  # Unauthenticated proxy
 SELENIUM_DRIVER_NAME = 'chrome'
 SELENIUM_DRIVER_EXECUTABLE_PATH = which('chromedriver')
 SELENIUM_DRIVER_ARGUMENTS = [
-    'headless',
     'proxy-server=%s' % PROXY_SERVER,
-    'ignore-certificate-errors'
+    #'headless',
+    'window-size=1920,1080',
+    'incognito',
+    'ignore-certificate-errors',
 ]
 SELENIUM_BROWSER_EXECUTABLE_PATH = which('google-chrome')
 

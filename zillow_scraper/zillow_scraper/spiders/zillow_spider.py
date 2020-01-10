@@ -32,7 +32,7 @@ class ZillowSpider(scrapy.Spider):
                     callback=self.parse_item_details,
                     cb_kwargs={'item': item},
                     #screenshot=True,  # Capture screen with selenium
-                    wait_time=3  # Wait for context to be loaded using javascript
+                    wait_time=8  # Wait for context to be loaded using javascript
                 )
             except Exception as e:
                 continue
@@ -42,7 +42,8 @@ class ZillowSpider(scrapy.Spider):
         next_page = response.xpath('//a[@aria-label="NEXT Page"]/@href').get()
         print(next_page)
         if next_page is not None:
-            yield response.follow(url=next_page, callback=self.parse)
+            #yield response.follow(url=next_page, callback=self.parse)
+            yield SeleniumRequest(url=next_page, callback=self.parse)
 
     def parse_item_details(self, response, item):
         item['sqft'] = response.css('.ds-chip > div:nth-child(1) > div:nth-child(1) > div:nth-child(1) > div:nth-child(1) > header:nth-child(2) > h3:nth-child(1) > span:nth-child(5) > span:nth-child(1)::text').get()
@@ -50,7 +51,7 @@ class ZillowSpider(scrapy.Spider):
         item['high_school_name'] = response.css('div.ds-school-row:nth-child(2) > div:nth-child(2) > a:nth-child(1)::text').get()
         item['median_zestimate'] = response.css('div.ds-standard-label:nth-child(2)::text').get()
         item['agent_name'] = response.css('span.listing-field:nth-child(1)::text').get()
-        item['agent_phone'] = response.css('span.listing-field:nth-child(4)::text').get()
+        item['agent_phone'] = response.css('span.listing-field:nth-child(3)::text').get()
         # Save screenshoot
         # screenshoot_file = '%s.png' % response.request.url.split('/')[-3]
         # with open(screenshoot_file, 'wb') as image_file:
