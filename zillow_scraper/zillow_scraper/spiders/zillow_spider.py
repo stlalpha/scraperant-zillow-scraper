@@ -3,11 +3,6 @@ import urllib.parse
 import scrapy
 from scrapy_selenium import SeleniumRequest
 from ..items import HouseListingItem
-from fake_useragent import UserAgent
-
-# Initialize user agent
-ua = UserAgent()
-ua.update()
 
 
 class ZillowSpider(scrapy.Spider):
@@ -39,14 +34,6 @@ class ZillowSpider(scrapy.Spider):
                     address=address,
                     details_url=details_url
                 )
-                # Get more data from each details page
-                # yield SeleniumRequest(
-                #     url=response.urljoin(item['details_url']),
-                #     callback=self.parse_item_details,
-                #     cb_kwargs={'item': item},
-                #     #screenshot=True,  # Capture screen with selenium
-                #     wait_time=1  # Wait for context to be loaded using javascript
-                # )
                 # Scrapy standard request + proxycloud
                 yield response.follow(
                     url=self._get_proxied_ulr(item['details_url']),
@@ -54,21 +41,7 @@ class ZillowSpider(scrapy.Spider):
                     callback=self.parse_item_details,
                     cb_kwargs={'item': item}
                 )
-                # Splash requests
-                # yield SplashRequest(
-                #     url=item['details_url'],
-                #     callback=self.parse_item_details,
-                #     cb_kwargs={'item':item},
-                #     args={
-                #         # optional; parameters passed to Splash HTTP API
-                #         'wait': 30,
-                #
-                #         # 'url' is prefilled from request url
-                #         # 'http_method' is set to 'POST' for POST requests
-                #         # 'body' is set to request body for POST requests
-                #     },
-                #     endpoint='render.html',  # optional; default is render.html
-                # )
+
             except Exception as e:
                 continue
 
@@ -85,7 +58,11 @@ class ZillowSpider(scrapy.Spider):
         item['high_school_name'] = response.css('div.ds-school-row:nth-child(2) > div:nth-child(2) > a:nth-child(1)::text').get()
         item['median_zestimate'] = response.css('div.ds-standard-label:nth-child(2)::text').get()
         item['agent_name'] = response.css('span.listing-field:nth-child(1)::text').get()
+        if item['agent_name'] is None:
+            item['agent_name'] = response.css('.cf-listing-agent-display-name::text').get()
         item['agent_phone'] = response.css('span.listing-field:nth-child(3)::text').get()
+        if item['agent_phone'] is None:
+            item['agent_phone'] = response.css('li.cf-listing-agent-info-text:nth-child(4)::text').get()
         # Save screenshoot
         # screenshoot_file = '%s.png' % response.request.url.split('/')[-3]
         # with open(screenshoot_file, 'wb') as image_file:
@@ -94,10 +71,8 @@ class ZillowSpider(scrapy.Spider):
 
     def _get_proxied_ulr(self, url):
         encoded_url = urllib.parse.quote_plus(url, safe='')
-        random_agent = ua.random
-        encoded_agent = urllib.parse.quote_plus(random_agent, safe='')
         # Senscrape
         #proxied_url = 'https://app.zenscrape.com/api/v1/get?url=%s&render=true&premium=&location=na&apikey=7aa28d10-3187-11ea-8e5e-49caa5eb4e83' % encoded_url
         # Proxy Crawl
-        proxied_url = 'https://api.proxycrawl.com/?token=nzaW1bbXAns4MSpIc8LYYw&country=US&device=desktop&ajax_wait=true&user_agent=%s&url=%s' % (encoded_agent, encoded_url)
+        proxied_url = 'https://api.proxycrawl.com/?token=nzaW1bbXAns4MSpIc8LYYw&country=US&device=desktop&page_wait=5000&ajax_wait=true&url=%s' % encoded_url
         return proxied_url
