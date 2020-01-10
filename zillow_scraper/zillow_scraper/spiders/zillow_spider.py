@@ -1,6 +1,10 @@
 import json
 import urllib.parse
 import scrapy
+from scrapy.spidermiddlewares.httperror import HttpError
+from twisted.internet.error import DNSLookupError
+from twisted.internet.error import TimeoutError, TCPTimedOutError
+
 from scrapy_selenium import SeleniumRequest
 from ..items import HouseListingItem
 
@@ -13,11 +17,10 @@ class ZillowSpider(scrapy.Spider):
     #     "www.zillowstatic.com",
     #     "s.zillowstatic.com",
     # ]
+    BASE_URL = "https://www.zillow.com"
 
     def start_requests(self):
-        yield scrapy.Request(self.zillow_url)
-        #Selenium request
-        #yield SeleniumRequest(url=self.zillow_url, callback=self.parse)
+        yield scrapy.Request(self._get_proxied_ulr(self.zillow_url), callback=self.parse, errback=self.error_handler)
 
     def parse(self, response):
         # Parse list of homes on this page
@@ -34,11 +37,12 @@ class ZillowSpider(scrapy.Spider):
                     address=address,
                     details_url=details_url
                 )
-                # Scrapy standard request + proxycloud
-                yield response.follow(
+                # Scrapy standard request + proxycrawl
+                yield scrapy.Request(
                     url=self._get_proxied_ulr(item['details_url']),
                     #url=item['details_url'],
                     callback=self.parse_item_details,
+                    errback=self.error_handler,
                     cb_kwargs={'item': item}
                 )
 
@@ -50,7 +54,8 @@ class ZillowSpider(scrapy.Spider):
         next_page = response.xpath('//a[@aria-label="NEXT Page"]/@href').get()
         print(next_page)
         if next_page is not None:
-            yield response.follow(url=next_page, callback=self.parse)
+            next_url = urllib.parse.urljoin(ZillowSpider.BASE_URL, next_page)
+            yield scrapy.Request(url=self._get_proxied_ulr(next_url), callback=self.parse, errback=self.error_handler)
 
     def parse_item_details(self, response, item):
         item['sqft'] = response.css('.ds-chip > div:nth-child(1) > div:nth-child(1) > div:nth-child(1) > div:nth-child(1) > header:nth-child(2) > h3:nth-child(1) > span:nth-child(5) > span:nth-child(1)::text').get()
@@ -76,3 +81,31 @@ class ZillowSpider(scrapy.Spider):
         # Proxy Crawl
         proxied_url = 'https://api.proxycrawl.com/?token=nzaW1bbXAns4MSpIc8LYYw&country=US&device=desktop&page_wait=5000&ajax_wait=true&url=%s' % encoded_url
         return proxied_url
+
+    def error_handler(self, failure):
+        # log all failures
+        self.logger.error(repr(failure))
+
+        # in case you want to do something special for some errors,
+        # you may need the failure's type:
+
+        if failure.check(HttpError):
+            # these exceptions come from HttpError spider middleware
+            # you can get the non-200 response
+            response = failure.value.response
+            self.logger.error('Retrying HttpError on %s. ', response.url)
+            yield scrapy.Request(
+                response.url,
+                callback=self.parse,
+                errback=self.error_handler,
+                dont_filter=True
+            )
+
+        elif failure.check(DNSLookupError):
+            # this is the original request
+            request = failure.request
+            self.logger.error('DNSLookupError on %s', request.url)
+
+        elif failure.check(TimeoutError, TCPTimedOutError):
+            request = failure.request
+            self.logger.error('TimeoutError on %s', request.url)
