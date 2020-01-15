@@ -35,13 +35,13 @@ class ZillowSpider(scrapy.Spider):
         for listing_item in response.css('article'):
             try:
                 # First get basic home data shown on the list
-                item = self._parse_listing_item(listing_item)
+                item = self.parse_listing_item(listing_item)
 
                 # Then visit each home details page to get extra data
                 logging.debug("Getting {}".format(item['home_details_link']))
                 yield scrapy.Request(
                     url=self._get_proxied_ulr(item['home_details_link']),
-                    callback=self._parse_item_details,
+                    callback=self.parse_home_details,
                     errback=self.error_handler,
                     cb_kwargs={'item': item}
                 )
@@ -59,7 +59,7 @@ class ZillowSpider(scrapy.Spider):
                 errback=self.error_handler
             )
 
-    def _parse_listing_item(self, listing_item):
+    def parse_listing_item(self, listing_item):
         item = HomeItem()
         try:
             item['address'] = listing_item.css('a.list-card-link::attr(aria-label)').get()
@@ -77,7 +77,7 @@ class ZillowSpider(scrapy.Spider):
             pass
         return item
 
-    def _parse_item_details(self, response, item):
+    def parse_home_details(self, response, item):
         try:  # Parse each data field and add it to the item
             logging.debug("Parsing details from: {}".format(item['home_details_link']))
             self._parse_listing_provider_name(response, item)
