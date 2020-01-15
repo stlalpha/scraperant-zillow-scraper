@@ -354,4 +354,3 @@ class ZillowSpider(scrapy.Spider):
         elif failure.check(TimeoutError, TCPTimedOutError):
             request = failure.request
             self.logger.error('TimeoutError on %s', request.url)
-
