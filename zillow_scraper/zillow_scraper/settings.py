@@ -73,19 +73,15 @@ ROBOTSTXT_OBEY = False
 # ]
 # SELENIUM_BROWSER_EXECUTABLE_PATH = which('google-chrome')
 
+# Activate the middleware
+PROXYCRAWL_ENABLED = True
+
+# The ProxyCrawl API token you wish to use, either normal of javascript token
+PROXYCRAWL_TOKEN = 'nzaW1bbXAns4MSpIc8LYYw'
 
 # Enable or disable downloader middlewares
 DOWNLOADER_MIDDLEWARES = {
-    #'scrapy.downloadermiddlewares.useragent.UserAgentMiddleware': None,
-    #'scrapy_user_agents.middlewares.RandomUserAgentMiddleware': 400,
-    #'scrapy_selenium.SeleniumMiddleware': 800,
-    #'scrapy_proxy_pool.middlewares.ProxyPoolMiddleware': 610,
-    #'scrapy_proxy_pool.middlewares.BanDetectionMiddleware': 620,
-    #'scrapy_splash.SplashCookiesMiddleware': 723,
-    #'scrapy_splash.SplashMiddleware': 725,
-    #'scrapy.downloadermiddlewares.httpcompression.HttpCompressionMiddleware': 810,
-
-    #'scrapy_selenium.SeleniumMiddleware': 800,
+    'scrapy_proxycrawl.ProxyCrawlMiddleware': 610 # For ProxyCrawl
 }
 
 DNSCACHE_ENABLED = False  # For ProxyCrawl

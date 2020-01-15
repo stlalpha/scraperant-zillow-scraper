@@ -2,30 +2,44 @@ import json
 import urllib.parse
 import scrapy
 import logging
+from scrapy_proxycrawl import ProxyCrawlRequest
 from scrapy.spidermiddlewares.httperror import HttpError
 from twisted.internet.error import DNSLookupError
 from twisted.internet.error import TimeoutError, TCPTimedOutError
-
-from scrapy_selenium import SeleniumRequest
+from scrapy.spiders import CrawlSpider, Rule
+from scrapy.linkextractors import LinkExtractor
 from ..items import HomeItem
 
 
-class ZillowSpider(scrapy.Spider):
+class ZillowSpider(CrawlSpider):
     name = 'zillow'
     BASE_URL = "https://www.zillow.com"
+    rules = (
+        # Parse all listing pages
+        Rule(
+            LinkExtractor(allow=('houses/',), restrict_css=('.search-pagination',)),
+            callback='parse_listing_page',
+            follow=True
+        ),
+    )
 
     def __init__(self, name=None, **kwargs):
         super().__init__(name=None, **kwargs)
+        self.start_urls = [self.zillow_url]
         self.zillow_query_params = self.zillow_url.split('?')[1]
 
     def start_requests(self):
-        yield scrapy.Request(
-            self._get_proxied_ulr(self.zillow_url),
-            callback=self.parse,
-            errback=self.error_handler
-        )
+        for url in self.start_urls:
+            yield ProxyCrawlRequest(
+                url,
+                device='desktop',
+                country='US',
+                page_wait=5000,
+                ajax_wait=True,
+                dont_filter=True
+            )
 
-    def parse(self, response):
+    def parse_listing_page(self, response):
         # Save screenshoot
         # screenshoot_file = '%s.png' % response.request.url.split('/')[-3]
         # with open(screenshoot_file, 'wb') as image_file:
@@ -39,8 +53,12 @@ class ZillowSpider(scrapy.Spider):
 
                 # Then visit each home details page to get extra data
                 logging.debug("Getting {}".format(item['home_details_link']))
-                yield scrapy.Request(
-                    url=self._get_proxied_ulr(item['home_details_link']),
+                yield ProxyCrawlRequest(
+                    url=item['home_details_link'],
+                    device='desktop',
+                    country='US',
+                    page_wait=5000,
+                    ajax_wait=True,
                     callback=self.parse_home_details,
                     errback=self.error_handler,
                     cb_kwargs={'item': item}
@@ -49,15 +67,15 @@ class ZillowSpider(scrapy.Spider):
                 continue
 
         # Move to next page and repeat
-        next_page = response.xpath('//a[@aria-label="NEXT Page"]/@href').get()
-        if next_page is not None:
-            next_url = urllib.parse.urljoin(ZillowSpider.BASE_URL, next_page)+"?{}".format(self.zillow_query_params)
-            print("REQUESTING NEXT PAGE:\n {}".format(next_url))
-            yield scrapy.Request(
-                url=self._get_proxied_ulr(next_url),
-                callback=self.parse,
-                errback=self.error_handler
-            )
+        # next_page = response.xpath('//a[@aria-label="NEXT Page"]/@href').get()
+        # if next_page is not None:
+        #     next_url = urllib.parse.urljoin(ZillowSpider.BASE_URL, next_page)+"?{}".format(self.zillow_query_params)
+        #     print("REQUESTING NEXT PAGE:\n {}".format(next_url))
+        #     yield scrapy.Request(
+        #         url=self._get_proxied_ulr(next_url),
+        #         callback=self.parse,
+        #         errback=self.error_handler
+        #     )
 
     def parse_listing_item(self, listing_item):
         item = HomeItem()
@@ -339,8 +357,12 @@ class ZillowSpider(scrapy.Spider):
             # you can get the non-200 response
             response = failure.value.response
             self.logger.error('Retrying HttpError on %s. ', response.url)
-            yield scrapy.Request(
+            yield ProxyCrawlRequest(
                 response.url,
+                device='desktop',
+                country='US',
+                page_wait=5000,
+                ajax_wait=True,
                 callback=self.parse,
                 errback=self.error_handler,
                 dont_filter=True
