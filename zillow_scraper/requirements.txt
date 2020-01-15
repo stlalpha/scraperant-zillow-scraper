@@ -1,2 +1,4 @@
 Scrapy==1.8.0
-scrapy-selenium==0.0.7
+#scrapy-user-agents==0.1.1
+#scrapy-selenium==0.0.7
+#fake-useragent==0.1.11
