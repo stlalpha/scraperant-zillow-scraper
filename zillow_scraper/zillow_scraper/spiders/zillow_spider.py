@@ -19,7 +19,9 @@ class ZillowSpider(CrawlSpider):
         Rule(
             LinkExtractor(allow=('houses/',), restrict_css=('.search-pagination',)),
             callback='parse_listing_page',
-            follow=True
+            follow=True,
+            process_links='process_links',
+            process_request='process_request'
         ),
     )
 
@@ -34,19 +36,37 @@ class ZillowSpider(CrawlSpider):
                 url,
                 device='desktop',
                 country='US',
-                page_wait=5000,
+                page_wait=8000,
                 ajax_wait=True,
-                dont_filter=True
+                dont_filter=True,
+                screenshot=True
             )
 
+    def process_links(self, links):
+        # Add query params in all urls
+        for link in links:
+            link.url = self._url_with_query_params(link.url)
+            yield link
+
+    def process_request(self, request, response):
+        # Use ProxyCrawlRequest for requests
+        new_request = request.replace(
+            cls=ProxyCrawlRequest,
+            device='desktop',
+            country='US',
+            page_wait=8000,
+            ajax_wait=True,
+            screenshot=True # Take a screenshoot for listing pages
+        )
+        return new_request
+
     def parse_listing_page(self, response):
-        # Save screenshoot
-        # screenshoot_file = '%s.png' % response.request.url.split('/')[-3]
-        # with open(screenshoot_file, 'wb') as image_file:
-        #     image_file.write(response.meta['screenshot'])
 
         # Parse list of homes on this page
-        for listing_item in response.css('article'):
+        listings = response.css('article')
+        print("Found {} listing in page: {}".format(len(listings), response.url))
+        print("Screen capture:\n {}".format(response.headers.get('Screenshot_Url', "Header not found")))
+        for listing_item in listings:
             try:
                 # First get basic home data shown on the list
                 item = self.parse_listing_item(listing_item)
@@ -57,7 +77,7 @@ class ZillowSpider(CrawlSpider):
                     url=item['home_details_link'],
                     device='desktop',
                     country='US',
-                    page_wait=5000,
+                    page_wait=8000,
                     ajax_wait=True,
                     callback=self.parse_home_details,
                     errback=self.error_handler,
@@ -66,21 +86,11 @@ class ZillowSpider(CrawlSpider):
             except Exception as e:
                 continue
 
-        # Move to next page and repeat
-        # next_page = response.xpath('//a[@aria-label="NEXT Page"]/@href').get()
-        # if next_page is not None:
-        #     next_url = urllib.parse.urljoin(ZillowSpider.BASE_URL, next_page)+"?{}".format(self.zillow_query_params)
-        #     print("REQUESTING NEXT PAGE:\n {}".format(next_url))
-        #     yield scrapy.Request(
-        #         url=self._get_proxied_ulr(next_url),
-        #         callback=self.parse,
-        #         errback=self.error_handler
-        #     )
-
     def parse_listing_item(self, listing_item):
         item = HomeItem()
         try:
-            item['address'] = listing_item.css('a.list-card-link::attr(aria-label)').get()
+            item['address'] = listing_item.css('address.list-card-addr::text').get()
+            print("House Found:{}".format(item['address']))
             item['price'] = listing_item.css('div.list-card-price::text').get()
             item['type'] = listing_item.css('div.list-card-type::text').get()
             card_details = listing_item.css('ul.list-card-details > li::text').extract()
@@ -90,7 +100,9 @@ class ZillowSpider(CrawlSpider):
                 item['sqft'] = card_details[2]
             elif len(card_details) == 1:
                 item['sqft'] = card_details[0]
-            item['home_details_link'] = listing_item.css('a.list-card-link::attr(href)').get()
+            item['home_details_link'] = self._url_with_query_params(  # Keep search params in url
+                listing_item.css('a.list-card-link::attr(href)').get()
+            )
         except Exception as e:
             pass
         return item
@@ -376,3 +388,7 @@ class ZillowSpider(CrawlSpider):
         elif failure.check(TimeoutError, TCPTimedOutError):
             request = failure.request
             self.logger.error('TimeoutError on %s', request.url)
+
+    def _url_with_query_params(self, url):
+        url += '?{}'.format(self.zillow_query_params)  # Keep query params
+        return url
