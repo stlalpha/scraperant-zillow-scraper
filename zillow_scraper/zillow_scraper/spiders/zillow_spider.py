@@ -1,4 +1,5 @@
 import json
+import re
 import urllib.parse
 import scrapy
 import logging
@@ -6,24 +7,15 @@ from scrapy_proxycrawl import ProxyCrawlRequest
 from scrapy.spidermiddlewares.httperror import HttpError
 from twisted.internet.error import DNSLookupError
 from twisted.internet.error import TimeoutError, TCPTimedOutError
-from scrapy.spiders import CrawlSpider, Rule
+from scrapy.spiders import Spider
 from scrapy.linkextractors import LinkExtractor
 from ..items import HomeItem
 
 
-class ZillowSpider(CrawlSpider):
+class ZillowSpider(Spider):
     name = 'zillow'
     BASE_URL = "https://www.zillow.com"
-    rules = (
-        # Parse all listing pages
-        Rule(
-            LinkExtractor(allow=('houses/',), restrict_css=('.search-pagination',)),
-            callback='parse_listing_page',
-            follow=True,
-            process_links='process_links',
-            process_request='process_request'
-        ),
-    )
+    link_extractor = LinkExtractor(allow=('houses/',), restrict_css=('.search-pagination',))
 
     def __init__(self, name=None, **kwargs):
         super().__init__(name=None, **kwargs)
@@ -34,36 +26,52 @@ class ZillowSpider(CrawlSpider):
         for url in self.start_urls:
             yield ProxyCrawlRequest(
                 url,
+                callback=self.parse,
+                errback=self.error_handler,
                 device='desktop',
                 country='US',
                 page_wait=8000,
                 ajax_wait=True,
-                dont_filter=True,
                 screenshot=True
             )
 
-    def process_links(self, links):
-        # Add query params in all urls
-        for link in links:
-            link.url = self._url_with_query_params(link.url)
-            yield link
-
-    def process_request(self, request, response):
-        # Use ProxyCrawlRequest for requests
-        new_request = request.replace(
-            cls=ProxyCrawlRequest,
-            device='desktop',
-            country='US',
-            page_wait=8000,
-            ajax_wait=True,
-            screenshot=True # Take a screenshoot for listing pages
-        )
-        return new_request
+    def parse(self, response):
+        # Find pagination links
+        links = self.link_extractor.extract_links(response)
+        if len(links) == 0:
+            print("NO PAGES FOUND..RETRY")
+            yield response.request.replace(dont_filter=True) # Trigger a new request
+        else:
+            # Add query params in url, and update page number if required
+            print("PARSING {} PAGES..".format(len(links)))
+            for i, link in enumerate(links):
+                # Is a listing page different from page 1 like /houses/2_p/?
+                pattern = r'.*/houses/\d+_p/$'
+                url = link.url
+                if re.match(pattern, url):
+                    page_num = url.split('/')[-2].split('_')[0]
+                    new_params = self.zillow_query_params.replace("%22pagination%22:{}",
+                                                                  '%%22pagination%%22:{"currentPage":%s}' % page_num)
+                    link.url = self._url_with_query_params(link.url, new_params)
+                else:
+                    link.url = self._url_with_query_params(link.url)
+                # Request each listings page to be parsed
+                print("REQUESTING PAGE {}..".format(i+1))
+                yield ProxyCrawlRequest(
+                    link.url,
+                    callback=self.parse_listing_page,
+                    errback=self.error_handler,
+                    dont_filter=True,  # Important, or the other pages are filtered
+                    device='desktop',
+                    country='US',
+                    page_wait=8000,
+                    ajax_wait=True,
+                    screenshot=True
+                )
 
     def parse_listing_page(self, response):
-
         # Parse list of homes on this page
-        listings = response.css('article')
+        listings = response.css('ul.photo-cards > li > article.list-card')
         print("Found {} listing in page: {}".format(len(listings), response.url))
         print("Screen capture:\n {}".format(response.headers.get('Screenshot_Url', "Header not found")))
         for listing_item in listings:
@@ -74,14 +82,14 @@ class ZillowSpider(CrawlSpider):
                 # Then visit each home details page to get extra data
                 logging.debug("Getting {}".format(item['home_details_link']))
                 yield ProxyCrawlRequest(
+                    callback=self.parse_home_details,
+                    cb_kwargs={'item': item},
+                    errback=self.error_handler,
                     url=item['home_details_link'],
                     device='desktop',
                     country='US',
                     page_wait=8000,
-                    ajax_wait=True,
-                    callback=self.parse_home_details,
-                    errback=self.error_handler,
-                    cb_kwargs={'item': item}
+                    ajax_wait=True
                 )
             except Exception as e:
                 continue
@@ -368,17 +376,8 @@ class ZillowSpider(CrawlSpider):
             # these exceptions come from HttpError spider middleware
             # you can get the non-200 response
             response = failure.value.response
-            self.logger.error('Retrying HttpError on %s. ', response.url)
-            yield ProxyCrawlRequest(
-                response.url,
-                device='desktop',
-                country='US',
-                page_wait=5000,
-                ajax_wait=True,
-                callback=self.parse,
-                errback=self.error_handler,
-                dont_filter=True
-            )
+            self.logger.error('RETRYING HttpError on %s. ', response.url)
+            yield response.request.replace(dont_filter=True)
 
         elif failure.check(DNSLookupError):
             # this is the original request
@@ -389,6 +388,9 @@ class ZillowSpider(CrawlSpider):
             request = failure.request
             self.logger.error('TimeoutError on %s', request.url)
 
-    def _url_with_query_params(self, url):
-        url += '?{}'.format(self.zillow_query_params)  # Keep query params
+    def _url_with_query_params(self, url, new_params=None):
+        params = self.zillow_query_params
+        if new_params:
+            params = new_params
+        url += '?{}'.format(params)  # Keep query params
         return url
