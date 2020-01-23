@@ -19,6 +19,7 @@ class HomeItem(scrapy.Item):
     home_details_link = scrapy.Field()
 
     # Home Details
+    listing_provided_by = scrapy.Field()
     listing_provider_name = scrapy.Field()
     listing_provider_phone = scrapy.Field()
     property_taxes_last_year = scrapy.Field()

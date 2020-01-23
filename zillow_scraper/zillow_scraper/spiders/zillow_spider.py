@@ -1,4 +1,5 @@
 import json
+import random
 import re
 import urllib.parse
 import scrapy
@@ -15,7 +16,10 @@ from ..items import HomeItem
 class ZillowSpider(Spider):
     name = 'zillow'
     BASE_URL = "https://www.zillow.com"
-    link_extractor = LinkExtractor(allow=('houses/',), restrict_css=('.search-pagination',))
+    link_extractor = LinkExtractor(
+        restrict_css=('.search-pagination',),
+        restrict_xpaths=('//a[contains(@aria-label, "Page")]/',)
+    )
 
     def __init__(self, name=None, **kwargs):
         super().__init__(name=None, **kwargs)
@@ -28,40 +32,52 @@ class ZillowSpider(Spider):
                 url,
                 callback=self.parse,
                 errback=self.error_handler,
-                device='desktop',
+                user_agent=self._get_random_user_agent(),
+                #device='desktop',
                 country='US',
                 page_wait=8000,
                 ajax_wait=True,
                 screenshot=True
             )
 
+    def _get_pages(self, response):
+        last_page_num = int(response.xpath('//a[contains(@aria-label, "Page")]/text()').extract()[-2])
+        first_page = response.xpath('//a[contains(@aria-label, "Page")]/@href').get()  # page 1 link has special format
+        if last_page_num == 1:
+            return [response.urljoin(first_page),]
+        # Pagination format is 1,2,3,4,5...20 next
+        second_page_link = response.xpath('//a[contains(@aria-label, "Page")]/@href').extract()[1] # Minimum 2 pages
+        links = [first_page] + [second_page_link.replace('2_p', '{}_p'.format(n)) for n in range(2, last_page_num + 1)]
+        full_links = [response.urljoin(lnk) for lnk in links]
+        return full_links
+
     def parse(self, response):
         # Find pagination links
-        links = self.link_extractor.extract_links(response)
-        if len(links) == 0:
+        pagination_links = self._get_pages(response)
+        if len(pagination_links) == 0:
             print("NO PAGES FOUND..RETRY")
             yield response.request.replace(dont_filter=True) # Trigger a new request
         else:
             # Add query params in url, and update page number if required
-            print("PARSING {} PAGES..".format(len(links)))
-            for i, link in enumerate(links):
+            print("PARSING {} PAGES..".format(len(pagination_links)))
+            for i, link in enumerate(pagination_links):
                 # Is a listing page different from page 1 like /houses/2_p/?
-                pattern = r'.*/houses/\d+_p/$'
-                url = link.url
-                if re.match(pattern, url):
-                    page_num = url.split('/')[-2].split('_')[0]
+                pattern = r'.*/\d+_p/$'
+                if re.match(pattern, link):
+                    page_num = link.split('/')[-2].split('_')[0]
                     new_params = self.zillow_query_params.replace("%22pagination%22:{}",
                                                                   '%%22pagination%%22:{"currentPage":%s}' % page_num)
-                    link.url = self._url_with_query_params(link.url, new_params)
+                    link = self._url_with_query_params(link, new_params)
                 else:
-                    link.url = self._url_with_query_params(link.url)
+                    link = self._url_with_query_params(link)
                 # Request each listings page to be parsed
                 print("REQUESTING PAGE {}..".format(i+1))
                 yield ProxyCrawlRequest(
-                    link.url,
+                    link,
                     callback=self.parse_listing_page,
                     errback=self.error_handler,
                     dont_filter=True,  # Important, or the other pages are filtered
+                    user_agent=self._get_random_user_agent(),
                     device='desktop',
                     country='US',
                     page_wait=8000,
@@ -82,14 +98,16 @@ class ZillowSpider(Spider):
                 # Then visit each home details page to get extra data
                 logging.debug("Getting {}".format(item['home_details_link']))
                 yield ProxyCrawlRequest(
+                    item['home_details_link'],
                     callback=self.parse_home_details,
                     cb_kwargs={'item': item},
                     errback=self.error_handler,
-                    url=item['home_details_link'],
+                    user_agent=self._get_random_user_agent(),
                     device='desktop',
                     country='US',
                     page_wait=8000,
-                    ajax_wait=True
+                    ajax_wait=True,
+                    screenshot=True
                 )
             except Exception as e:
                 continue
@@ -104,7 +122,7 @@ class ZillowSpider(Spider):
             card_details = listing_item.css('ul.list-card-details > li::text').extract()
             if len(card_details) == 3:
                 item['number_of_bedrooms'] = card_details[0]
-                item['number_of_bathrooms']  = card_details[1]
+                item['number_of_bathrooms'] = card_details[1]
                 item['sqft'] = card_details[2]
             elif len(card_details) == 1:
                 item['sqft'] = card_details[0]
@@ -118,6 +136,15 @@ class ZillowSpider(Spider):
     def parse_home_details(self, response, item):
         try:  # Parse each data field and add it to the item
             logging.debug("Parsing details from: {}".format(item['home_details_link']))
+            print("Screen capture:\n {}".format(response.headers.get('Screenshot_Url', "Header not found")))
+            # Check for known error loading the page
+            ERROR_TEXT = "There was an error retrieving some of the data for this home"
+            if ERROR_TEXT in response.text:
+                logging.warning("ERROR LOADING PAGE:\n {}\n RETRYING..".format(item['home_details_link']))
+                return response.request.replace(dont_filter=True)
+
+            # Extract data
+            self._parse_listing_provided_by(response, item)
             self._parse_listing_provider_name(response, item)
             self._parse_listing_provider_phone(response, item)
             self._parse_property_taxes_last_year(response, item)
@@ -162,24 +189,96 @@ class ZillowSpider(Spider):
                 return None
             return elem
 
-    def _parse_listing_provider_name(self, response, item):
-        item['listing_provider_name'] = self._get_element(
+    def _parse_listing_provided_by(self, response, item):
+        listed_by_str = self._get_element(
             response,
             css_selectors=[
-                'span.listing-field:nth-child(1)::text',
-                '.cf-listing-agent-display-name::text'
+                'div.home-details-listing-provided-by > span::text',
             ]
         )
+        try:  # Owner or Agent?
+            lister = listed_by_str.split('Listing provided by')[1].lower().strip()
+        except Exception as e:
+            lister = 'agent'
+
+        item['listing_provided_by'] = lister
+        return item
+
+    def _parse_listing_provider_name(self, response, item):
+        # Apply different selectors depending if is owner or agent
+        if item['listing_provided_by'] == 'owner':
+            item['listing_provider_name'] = self._get_element(
+                response,
+                css_selectors=[
+                    'span.listing-field:nth-child(1)::text'
+                ]
+            )
+        else:  # agent is the default
+            item['listing_provider_name'] = self._get_element(
+                response,
+                css_selectors=[
+                    'span.listing-field:nth-child(1)::text',
+                    '.cf-listing-agent-display-name::text',
+                    '.ds-listing-agent-display-name::text',
+                    'span.cf-rpt-display-name-text.name::text',
+                    'div.cf-cnt-rpt-container:nth-child(1) > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > '
+                    'span:nth-child(1) > a:nth-child(1) > span:nth-child(1)::text',
+                ]
+            )
+
+        if item['listing_provider_name'] == 'Property Owner' or item['listing_provider_name'][0] == '(':
+            item['listing_provider_name'] = 'Property Owner - unknown name'
+
+        if item['listing_provider_name'] is None:
+            logging.warning("LISTING PROVIDER NAME NOT FOUND:\n {}".format(item['home_details_link']))
         return item
 
     def _parse_listing_provider_phone(self, response, item):
-        item['listing_provider_phone'] = self._get_element(
-            response,
-            css_selectors=[
-                'span.listing-field:nth-child(3)::text',
-                'li.cf-listing-agent-info-text:nth-child(4)::text'
-            ]
-        )
+        # Apply different selectors depending if is owner or agent
+        if item['listing_provided_by'] == 'owner':
+            item['listing_provider_phone'] = self._get_element(
+                response,
+                css_selectors=[
+                    'div.zsg-content-item > div > span.listing-field:nth-child(4)::text',  # Multiple lines
+                    'div.zsg-content-item > div > span.listing-field:nth-child(3)::text',
+                    'div.zsg-content-item > div > span.listing-field:nth-child(2)::text',
+                    'div.zsg-content-item > div > span.listing-field::text'  # some have phone only
+                ]
+            )
+        else: # agent is the default
+            item['listing_provider_phone'] = self._get_element(
+                response,
+                css_selectors=[
+                    'span.listing-field:nth-child(3)::text',
+                    'li.ds-listing-agent-info-text::text',
+                    'li.cf-listing-agent-info-text:nth-child(4)::text',
+                    'div.cf-cnt-rpt-container:nth-child(1) > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > '
+                    'span:nth-child(4)::text',
+                    'span.cf-phone:nth-child(3)::text',
+                    'div.zsg-content-item > div > span.listing-field::text',
+                ]
+            )
+        # Todo check phone format with regex
+        if item['listing_provider_phone'] and item['listing_provider_phone'][0] != '(':
+            # Try other selectors
+            item['listing_provider_phone'] = self._get_element(
+                response,
+                css_selectors=[
+                    'div.zsg-content-item > div > span.listing-field:nth-child(4)::text',
+                    'div.zsg-content-item > div > span.listing-field:nth-child(3)::text',
+                    'span.cf-phone:nth-child(3)::text',
+                    'div.zsg-content-item > div > span.listing-field:nth-child(2)::text',
+                    '.cf-listing-agent-info-text::text',
+                ],
+                xpath_selectors=[
+                    '//html/body/div[1]/div[7]/div[1]/div[1]/div/div/div[3]/div/div/div/div[3]/div[4]/div[5]/ul/li[20]/div/div[1]/div[1]/div[2]/div/span[4]/text()',
+                    '//html/body/div[1]/div[7]/div[1]/div[1]/div/div/div[3]/div/div/div/div[3]/div[4]/div[5]/ul/li[17]/div/div[1]/article/div[1]/form/section/div[1]/div/div[4]/div[1]/div/div[1]/div[2]/span[3]/text()'
+                ]
+            )
+            if item['listing_provider_phone'] and item['listing_provider_phone'][0] != '(':
+                item['listing_provider_phone'] = None
+        if item['listing_provider_phone'] is None:
+            logging.warning("LISTING PROVIDER PHONE NOT FOUND:\n {}".format(item['home_details_link']))
         return item
 
     def _parse_property_taxes_last_year(self, response, item):
@@ -394,3 +493,15 @@ class ZillowSpider(Spider):
             params = new_params
         url += '?{}'.format(params)  # Keep query params
         return url
+
+    def _get_random_user_agent(self):
+        user_agents = [
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.130 Safari/537.36',
+            'Mozilla/5.0 (iPhone; CPU iPhone OS 12_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0 Mobile/15E148 Safari/604.1',
+            'Mozilla/5.0 (iPad; CPU OS 12_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0 Mobile/15E148 Safari/604.1',
+            'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:54.0) Gecko/20100101 Firefox/72.0',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.13; rv:61.0) Gecko/20100101 Firefox/72.0',
+            'Mozilla/5.0 (X11; Linux i586; rv:31.0) Gecko/20100101 Firefox/72.0',
+        ]
+        return random.choice(user_agents)
+
