@@ -41,11 +41,16 @@ class ZillowSpider(Spider):
             )
 
     def _get_pages(self, response):
-        last_page_num = int(response.xpath('//a[contains(@aria-label, "Page")]/text()').extract()[-2])
+        # Look for pagination links
+        pages = response.xpath('//a[contains(@aria-label, "Page")]/text()').extract()
+        if len(pages) <= 1:  # No pagination, it's a single page
+            return [response.url, ]
+
+        # Multiple pages with format 1,2,3,4,5...20 next
+        last_page_num = int(pages[-2])
         first_page = response.xpath('//a[contains(@aria-label, "Page")]/@href').get()  # page 1 link has special format
-        if last_page_num == 1:
-            return [response.urljoin(first_page),]
-        # Pagination format is 1,2,3,4,5...20 next
+
+        # Second to last page links contain work "Page" in an attribute
         second_page_link = response.xpath('//a[contains(@aria-label, "Page")]/@href').extract()[1] # Minimum 2 pages
         links = [first_page] + [second_page_link.replace('2_p', '{}_p'.format(n)) for n in range(2, last_page_num + 1)]
         full_links = [response.urljoin(lnk) for lnk in links]
@@ -112,12 +117,27 @@ class ZillowSpider(Spider):
             except Exception as e:
                 continue
 
+    def _parse_listing_price(self, listing_item, item):
+        item['price'] = listing_item.css('div.list-card-price::text').get().strip()
+        if not item['price']:  # Maybe there is an estimated price
+            price_candidates = listing_item.css('div.list-card-price::text').extract()
+            for el in price_candidates:
+                if el and '$' in el:
+                    item['price'] = el
+                    break
+        return item
+
     def parse_listing_item(self, listing_item):
         item = HomeItem()
         try:
+            # Get address
             item['address'] = listing_item.css('address.list-card-addr::text').get()
             print("House Found:{}".format(item['address']))
-            item['price'] = listing_item.css('div.list-card-price::text').get()
+
+            # Try to get price
+            self._parse_listing_price(listing_item, item)
+
+            # Get other basic info
             item['type'] = listing_item.css('div.list-card-type::text').get()
             card_details = listing_item.css('ul.list-card-details > li::text').extract()
             if len(card_details) == 3:
@@ -201,6 +221,9 @@ class ZillowSpider(Spider):
         except Exception as e:
             lister = 'agent'
 
+        if not lister:
+            lister = 'agent'
+
         item['listing_provided_by'] = lister
         return item
 
@@ -226,7 +249,8 @@ class ZillowSpider(Spider):
                 ]
             )
 
-        if item['listing_provider_name'] == 'Property Owner' or item['listing_provider_name'][0] == '(':
+        if item['listing_provider_name'] and \
+                (item['listing_provider_name'] == 'Property Owner' or item['listing_provider_name'][0] == '('):
             item['listing_provider_name'] = 'Property Owner - unknown name'
 
         if item['listing_provider_name'] is None:
@@ -488,11 +512,12 @@ class ZillowSpider(Spider):
             self.logger.error('TimeoutError on %s', request.url)
 
     def _url_with_query_params(self, url, new_params=None):
+        base_url = url.split('?')[0]  # Remove current params if present
         params = self.zillow_query_params
         if new_params:
             params = new_params
-        url += '?{}'.format(params)  # Keep query params
-        return url
+        new_url = base_url + '?{}'.format(params)  # Keep query params
+        return new_url
 
     def _get_random_user_agent(self):
         user_agents = [
@@ -504,4 +529,5 @@ class ZillowSpider(Spider):
             'Mozilla/5.0 (X11; Linux i586; rv:31.0) Gecko/20100101 Firefox/72.0',
         ]
         return random.choice(user_agents)
+
 
