@@ -16,10 +16,36 @@ from ..items import HomeItem
 class ZillowSpider(Spider):
     name = 'zillow'
     BASE_URL = "https://www.zillow.com"
-    link_extractor = LinkExtractor(
-        restrict_css=('.search-pagination',),
-        restrict_xpaths=('//a[contains(@aria-label, "Page")]/',)
-    )
+    custom_settings = {
+        # specifies exported fields and order
+        'FEED_EXPORT_FIELDS': [
+            "address",
+            "price",
+            "type",
+            "number_of_bedrooms",
+            "number_of_bathrooms",
+            "sqft",
+            "home_details_link",
+            "listing_provided_by",
+            "listing_provider_name",
+            "listing_provider_phone",
+            "property_taxes_last_year",
+            "estimated_monthly_cost",
+            "property_taxes_monthly",
+            "hoa_fees",
+            "zestimate_sell_price",
+            "zestimate_rent_price",
+            "elementary_school_name",
+            "elementary_school_rating",
+            "elementary_school_link",
+            "middle_school_name",
+            "middle_school_rating",
+            "middle_school_link",
+            "high_school_name",
+            "high_school_rating",
+            "high_school_link",
+        ],
+    }
 
     def __init__(self, name=None, **kwargs):
         super().__init__(name=None, **kwargs)

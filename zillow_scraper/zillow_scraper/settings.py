@@ -86,6 +86,12 @@ DOWNLOADER_MIDDLEWARES = {
 
 DNSCACHE_ENABLED = False  # For ProxyCrawl
 
+# Export results to excel
+FEED_EXPORTERS = {
+    'xlsx': 'scrapy_xlsx.XlsxItemExporter',
+}
+
+
 # Enable or disable extensions
 # See https://docs.scrapy.org/en/latest/topics/extensions.html
 #EXTENSIONS = {
