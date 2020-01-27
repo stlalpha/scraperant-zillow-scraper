@@ -1,2 +1,4 @@
 Scrapy==1.8.0
-#scrapy-proxycrawl-middleware==1.0.2
+#scrapy-proxycrawl-middleware==1.1.0
+git+https://github.com/proxycrawl/scrapy-proxycrawl-middleware
+scrapy-xlsx==0.1.1
