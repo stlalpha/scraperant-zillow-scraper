@@ -51,6 +51,7 @@ class ZillowSpider(Spider):
         super().__init__(name=None, **kwargs)
         self.start_urls = [self.zillow_url]
         self.zillow_query_params = self.zillow_url.split('?')[1]
+        self.sample_mode = self.sample_mode and self.sample_mode == '1'
 
     def start_requests(self):
         for url in self.start_urls:
@@ -89,12 +90,14 @@ class ZillowSpider(Spider):
             print("NO PAGES FOUND..RETRY")
             yield response.request.replace(dont_filter=True) # Trigger a new request
         else:
-            # Add query params in url, and update page number if required
+            if self.sample_mode:
+                logging.debug("SAMPLE MODE ON, PARSING ONLY FIRST PAGE..")
+                del pagination_links[1:]  # truncate to first link only
             print("PARSING {} PAGES..".format(len(pagination_links)))
             for i, link in enumerate(pagination_links):
                 # Is a listing page different from page 1 like /houses/2_p/?
                 pattern = r'.*/\d+_p/$'
-                if re.match(pattern, link):
+                if re.match(pattern, link): # Add query params in url, and update page number if required
                     page_num = link.split('/')[-2].split('_')[0]
                     new_params = self.zillow_query_params.replace("%22pagination%22:{}",
                                                                   '%%22pagination%%22:{"currentPage":%s}' % page_num)
@@ -117,10 +120,16 @@ class ZillowSpider(Spider):
                 )
 
     def parse_listing_page(self, response):
-        # Parse list of homes on this page
+        # Get listings on this page
         listings = response.css('ul.photo-cards > li > article.list-card')
         print("Found {} listing in page: {}".format(len(listings), response.url))
         print("Screen capture:\n {}".format(response.headers.get('Screenshot_Url', "Header not found")))
+
+        if self.sample_mode:
+            logging.debug("SAMPLE MODE ON, PARSING ONLY 3 LISTING ITEMS..")
+            listings = listings[0:3]  # truncate to 3 items
+
+        # Parse each listing details
         for listing_item in listings:
             try:
                 # First get basic home data shown on the list
