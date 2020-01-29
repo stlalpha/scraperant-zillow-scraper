@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-from shutil import which
 
 # Scrapy settings for zillow_scraper project
 #
