@@ -1,7 +1,10 @@
 import json
 import random
 import re
-import urllib.parse
+try:
+    from urllib.parse import urlparse
+except ImportError:
+     from urlparse import urlparse
 import scrapy
 import logging
 from scrapy_proxycrawl import ProxyCrawlRequest
