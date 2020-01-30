@@ -1,27 +1,28 @@
 import json
 import random
 import re
+import os
 try:
     from urllib.parse import urlparse
 except ImportError:
      from urlparse import urlparse
-import scrapy
 import logging
 from scrapy_proxycrawl import ProxyCrawlRequest
 from scrapy.spidermiddlewares.httperror import HttpError
 from twisted.internet.error import DNSLookupError
 from twisted.internet.error import TimeoutError, TCPTimedOutError
 from scrapy.spiders import Spider
-from scrapy.linkextractors import LinkExtractor
 from ..items import HomeItem
 
 
 class ZillowSpider(Spider):
-    name = 'zillow'
+    name = 'zillow_spider'
     BASE_URL = "https://www.zillow.com"
+    BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     custom_settings = {
-        # specifies exported fields and order
-        'FEED_EXPORT_FIELDS': [
+        'FEED_FORMAT': 'xlsx',
+        'FEED_URI': 'file://{}/%(time)s_%(name)s_results.xlsx'.format(BASE_DIR),  # Output file
+        'FEED_EXPORT_FIELDS': [  # specifies exported fields and order
             "address",
             "price",
             "type",
@@ -54,7 +55,6 @@ class ZillowSpider(Spider):
         super().__init__(name=None, **kwargs)
         self.start_urls = [self.zillow_url]
         self.zillow_query_params = self.zillow_url.split('?')[1]
-        self.sample_mode = self.sample_mode and self.sample_mode == '1'
 
     def start_requests(self):
         for url in self.start_urls:
