@@ -18,10 +18,9 @@ from ..items import HomeItem
 class ZillowSpider(Spider):
     name = 'zillow_spider'
     BASE_URL = "https://www.zillow.com"
-    BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     custom_settings = {
         'FEED_FORMAT': 'xlsx',
-        'FEED_URI': 'file://{}/%(time)s_%(name)s_results.xlsx'.format(BASE_DIR),  # Output file
+        'FEED_URI': 's3://scraperant-prod/scraping/feeds/%(time)s_%(name)s_results.xlsx',  # Output file
         'FEED_EXPORT_FIELDS': [  # specifies exported fields and order
             "address",
             "price",
