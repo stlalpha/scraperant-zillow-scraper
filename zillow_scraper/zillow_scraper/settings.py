@@ -90,6 +90,9 @@ FEED_EXPORTERS = {
     'xlsx': 'scrapy_xlsx.XlsxItemExporter',
 }
 
+# Storage settings for S3
+AWS_ACCESS_KEY_ID = "AKIAZ2Y7DMIABIRADLUK"
+AWS_SECRET_ACCESS_KEY = "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"
 
 # Enable or disable extensions
 # See https://docs.scrapy.org/en/latest/topics/extensions.html
