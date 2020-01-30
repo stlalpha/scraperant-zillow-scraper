@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-
+import os
 # Scrapy settings for zillow_scraper project
 #
 # For simplicity, this file contains only settings considered important or
@@ -76,7 +76,7 @@ ROBOTSTXT_OBEY = False
 PROXYCRAWL_ENABLED = True
 
 # The ProxyCrawl API token you wish to use, either normal of javascript token
-PROXYCRAWL_TOKEN = 'nzaW1bbXAns4MSpIc8LYYw'
+PROXYCRAWL_TOKEN = os.environ.get('PROXYCRAWL_TOKEN')
 
 # Enable or disable downloader middlewares
 DOWNLOADER_MIDDLEWARES = {
@@ -91,8 +91,8 @@ FEED_EXPORTERS = {
 }
 
 # Storage settings for S3
-AWS_ACCESS_KEY_ID = "AKIAZ2Y7DMIABIRADLUK"
-AWS_SECRET_ACCESS_KEY = "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"
+AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY_ID')
+AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY')
 
 # Enable or disable extensions
 # See https://docs.scrapy.org/en/latest/topics/extensions.html
