@@ -10,7 +10,6 @@ import os
 #     https://docs.scrapy.org/en/latest/topics/spider-middleware.html
 
 BOT_NAME = 'zillow_scraper'
-
 SPIDER_MODULES = ['zillow_scraper.spiders']
 NEWSPIDER_MODULE = 'zillow_scraper.spiders'
 

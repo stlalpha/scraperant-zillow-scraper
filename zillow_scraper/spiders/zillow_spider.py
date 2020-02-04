@@ -1,18 +1,17 @@
-import json
 import random
 import re
-import os
+
 try:
     from urllib.parse import urlparse
 except ImportError:
-     from urlparse import urlparse
+    from urlparse import urlparse
 import logging
 from scrapy_proxycrawl import ProxyCrawlRequest
 from scrapy.spidermiddlewares.httperror import HttpError
 from twisted.internet.error import DNSLookupError
 from twisted.internet.error import TimeoutError, TCPTimedOutError
 from scrapy.spiders import Spider
-from ..items import HomeItem
+from zillow_scraper.items import HomeItem
 
 
 class ZillowSpider(Spider):
