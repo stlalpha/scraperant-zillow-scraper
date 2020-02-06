@@ -25,7 +25,7 @@ def run_scraper_in_fargate(zillow_url, sample_mode=False):
         "python",
         "./run_scraper.py",
         "--zillow-url",
-        "{}".format(zillow_url)
+        zillow_url
     ]
     if sample_mode:
         docker_cmd.append("--sample-mode")
