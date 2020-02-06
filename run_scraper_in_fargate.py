@@ -73,7 +73,8 @@ def run_scraper_in_fargate(zillow_url, sample_mode=False):
             'executionRoleArn': 'arn:aws:iam::675985711616:role/ecsTaskExecutionRole',
             'taskRoleArn': 'arn:aws:iam::675985711616:role/ecsTaskExecutionRole'
         },
-        taskDefinition='zillow-scraper-task-definition:7'
+        # Let it use the latest active revision of the task
+        taskDefinition='zillow-scraper-task-definition'
     )
     return aws_response
 
