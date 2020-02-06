@@ -1,5 +1,5 @@
 Scrapy==1.8.0
 scrapy-proxycrawl-middleware==1.1.0
 scrapy-xlsx==0.1.1
-botocore==1.14.9
+botocore==1.14.11
 
