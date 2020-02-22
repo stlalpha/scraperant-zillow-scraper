@@ -1,6 +1,9 @@
 import random
 import re
 
+import requests
+from requests.auth import HTTPBasicAuth
+
 try:
     from urllib.parse import urlparse
 except ImportError:
@@ -55,6 +58,9 @@ class ZillowSpider(Spider):
         self.zillow_query_params = self.zillow_url.split('?')[1]
 
     def start_requests(self):
+        if self.post_back_url:
+            # Call scraperant api to update execution status
+            self._notify_scraper_status(status="RUNNING", status_details="Starting requests..")
         for url in self.start_urls:
             yield ProxyCrawlRequest(
                 url,
@@ -85,6 +91,9 @@ class ZillowSpider(Spider):
         return full_links
 
     def parse(self, response):
+        # Call scraperant api to update execution status
+        self._notify_scraper_status(status="RUNNING", status_details="Counting pages..")
+
         # Find pagination links
         pagination_links = self._get_pages(response)
         if len(pagination_links) == 0:
@@ -94,7 +103,10 @@ class ZillowSpider(Spider):
             if self.sample_mode:
                 logging.debug("SAMPLE MODE ON, PARSING ONLY FIRST PAGE..")
                 del pagination_links[1:]  # truncate to first link only
-            print("PARSING {} PAGES..".format(len(pagination_links)))
+            total_pages = len(pagination_links)
+            print("PARSING {} PAGES..".format(total_pages))
+            # Call scraperant api to update execution status
+            self._notify_scraper_status(status="RUNNING", status_details="Parsing {} pages..".format(total_pages))
             for i, link in enumerate(pagination_links):
                 # Is a listing page different from page 1 like /houses/2_p/?
                 pattern = r'.*/\d+_p/$'
@@ -565,5 +577,37 @@ class ZillowSpider(Spider):
             'Mozilla/5.0 (X11; Linux i586; rv:31.0) Gecko/20100101 Firefox/72.0',
         ]
         return random.choice(user_agents)
+
+    def _notify_scraper_status(self, status, status_details=""):
+        if self.post_back_url:
+            # ToDo: Change Basic Auth for JWT or API key?
+            response = requests.patch(
+                self.post_back_url,
+                data={
+                    "status": status,
+                    "status_details": status_details,
+                },
+                verify=False,
+                auth=HTTPBasicAuth('info@scraperant.com', 'sokinok0')
+            )
+            if response.status_code >= 400:
+                logging.error("ERROR updating status. API Response: {} - {}".format(
+                    response.status_code, response.text
+                ))
+        # Send to log
+        logging.info("SCRAPER STATUS {}: - {}".format(status, status_details))
+
+    def closed(self, reason):
+        # Will be called when the crawler process ends
+        if reason == "finished":
+            status = "COMPLETE"
+        else:
+            status = "ERROR"
+        # Notify status to scraperant backend
+        self._notify_scraper_status(
+            status=status,
+            status_details=reason
+        )
+
 
 

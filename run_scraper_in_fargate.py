@@ -18,9 +18,10 @@ client = boto3.client(
 p = argparse.ArgumentParser()
 p.add_argument('--zillow-url', dest='zillow_url', required=True)
 p.add_argument('--sample-mode', dest='sample_mode', action='store_true', default=False)
+p.add_argument('--post-back-url', dest='post_back_url', required=False)
 
 
-def run_scraper_in_fargate(zillow_url, sample_mode=False):
+def run_scraper_in_fargate(zillow_url, sample_mode=False, post_back_url=None):
     docker_cmd = [
         "python",
         "./run_scraper.py",
@@ -29,6 +30,10 @@ def run_scraper_in_fargate(zillow_url, sample_mode=False):
     ]
     if sample_mode:
         docker_cmd.append("--sample-mode")
+
+    if post_back_url:
+        docker_cmd.append("--post-back-url")
+        docker_cmd.append(post_back_url)
 
     # Call AWS API
     aws_response = client.run_task(

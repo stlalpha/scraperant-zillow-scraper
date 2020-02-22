@@ -6,6 +6,7 @@ from scrapy.utils.project import get_project_settings
 p = argparse.ArgumentParser()
 p.add_argument('--zillow-url', dest='zillow_url', required=True)
 p.add_argument('--sample-mode', dest='sample_mode', action='store_true', default=False)
+p.add_argument('--post-back-url', dest='post_back_url', required=False)
 
 if __name__ == '__main__':
     args = p.parse_args()
