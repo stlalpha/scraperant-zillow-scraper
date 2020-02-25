@@ -22,7 +22,7 @@ class ZillowSpider(Spider):
     BASE_URL = "https://www.zillow.com"
     custom_settings = {
         'FEED_FORMAT': 'xlsx',
-        'FEED_URI': 's3://scraperant-prod/scraping/feeds/%(time)s_%(name)s_results.xlsx',  # Output file
+        'FEED_URI': 's3://%(output_file)s',  # Output file
         'FEED_EXPORT_FIELDS': [  # specifies exported fields and order
             "address",
             "price",

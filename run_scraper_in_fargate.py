@@ -17,16 +17,19 @@ client = boto3.client(
 # This scrapper takes arguments. At least zillow url is required
 p = argparse.ArgumentParser()
 p.add_argument('--zillow-url', dest='zillow_url', required=True)
+p.add_argument('--output-file', dest='output_file', required=True)
 p.add_argument('--sample-mode', dest='sample_mode', action='store_true', default=False)
 p.add_argument('--post-back-url', dest='post_back_url', required=False)
 
 
-def run_scraper_in_fargate(zillow_url, sample_mode=False, post_back_url=None):
+def run_scraper_in_fargate(zillow_url, output_file, sample_mode=False, post_back_url=None):
     docker_cmd = [
         "python",
         "./run_scraper.py",
         "--zillow-url",
-        zillow_url
+        zillow_url,
+        "--output-file",
+        output_file
     ]
     if sample_mode:
         docker_cmd.append("--sample-mode")
