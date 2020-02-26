@@ -5,6 +5,7 @@ from scrapy.utils.project import get_project_settings
 # This scrapper takes arguments. At least zillow url is required
 p = argparse.ArgumentParser()
 p.add_argument('--zillow-url', dest='zillow_url', required=True)
+p.add_argument('--bucket-name', dest='bucket_name', required=True)
 p.add_argument('--output-file', dest='output_file', required=True)
 p.add_argument('--sample-mode', dest='sample_mode', action='store_true', default=False)
 p.add_argument('--post-back-url', dest='post_back_url', required=False)

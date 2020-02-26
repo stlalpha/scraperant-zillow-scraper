@@ -22,7 +22,7 @@ class ZillowSpider(Spider):
     BASE_URL = "https://www.zillow.com"
     custom_settings = {
         'FEED_FORMAT': 'xlsx',
-        'FEED_URI': 's3://%(output_file)s',  # Output file
+        'FEED_URI': 's3://%(bucket_name)s/%(output_file)s',  # Output file
         'FEED_EXPORT_FIELDS': [  # specifies exported fields and order
             "address",
             "price",
@@ -618,13 +618,13 @@ class ZillowSpider(Spider):
                 logging.warning("WRN execution_log_id not found. Skipped.")
                 return
             # Get feed file path
-            s3_file_path = self.custom_settings["FEED_URI"] % {'output_file': self.output_file}
+            s3_file_key = self.output_file
             # Send data to API
             response = requests.post(
                 save_results_url,
                 data={
                     "execution_log": execution_log_id,
-                    "file": s3_file_path,
+                    "file": s3_file_key,
                 },
                 verify=False,
                 auth=HTTPBasicAuth('info@scraperant.com', 'sokinok0')
