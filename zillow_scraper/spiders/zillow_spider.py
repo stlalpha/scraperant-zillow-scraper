@@ -597,17 +597,64 @@ class ZillowSpider(Spider):
         # Send to log
         logging.info("SCRAPER STATUS {}: - {}".format(status, status_details))
 
+    def _post_back_results(self):
+        if self.post_back_url:
+            # ToDo: Change Basic Auth for JWT or API key?
+            response = requests.get(
+                self.post_back_url,
+                verify=False,
+                auth=HTTPBasicAuth('info@scraperant.com', 'sokinok0')
+            )
+            # Parse response to discover useful info
+            response_data = response.json()
+            # Get the results url
+            save_results_url = response_data.get("extracted_data_url", None)
+            if not save_results_url:
+                logging.warning("WRN extracted_data_url not found. Skipped.")
+                return
+            # Get execution log id
+            execution_log_id = response_data.get("id", None)
+            if not execution_log_id:
+                logging.warning("WRN execution_log_id not found. Skipped.")
+                return
+            # Get feed file path
+            s3_file_path = self.custom_settings["FEED_URI"] % {'output_file': self.output_file}
+            # Send data to API
+            response = requests.post(
+                save_results_url,
+                data={
+                    "execution_log": execution_log_id,
+                    "file": s3_file_path,
+                },
+                verify=False,
+                auth=HTTPBasicAuth('info@scraperant.com', 'sokinok0')
+            )
+            if response.status_code >= 400:
+                logging.error("ERROR posting back extracted data API Response: {} - {}".format(
+                    response.status_code, response.text
+                ))
+
     def closed(self, reason):
         # Will be called when the crawler process ends
-        if reason == "finished":
-            status = "COMPLETE"
-        else:
+        try:
+            if reason == "finished":
+                status = "COMPLETE"
+                self._post_back_results()
+            else:
+                status = "ERROR"
+        except Exception as e:
             status = "ERROR"
+            details = "Exception after scraper closed: '{}'".format(e)
+        else:
+            details = reason
         # Notify status to scraperant backend
         self._notify_scraper_status(
             status=status,
-            status_details=reason
+            status_details=details
         )
+
+
+
 
 
 
