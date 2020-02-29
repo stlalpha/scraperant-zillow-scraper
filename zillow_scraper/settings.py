@@ -93,6 +93,9 @@ FEED_EXPORTERS = {
 AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY_ID')
 AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY')
 
+# Scraperant API Key needed to call API and update status
+SCRAPERANT_API_KEY = os.environ.get('SCRAPERANT_API_KEY')
+
 # Enable or disable extensions
 # See https://docs.scrapy.org/en/latest/topics/extensions.html
 #EXTENSIONS = {

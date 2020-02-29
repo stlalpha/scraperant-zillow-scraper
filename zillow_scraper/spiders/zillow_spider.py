@@ -583,12 +583,14 @@ class ZillowSpider(Spider):
             # ToDo: Change Basic Auth for JWT or API key?
             response = requests.patch(
                 self.post_back_url,
+                headers={
+                    'Authorization': 'Api-Key {}'.format(self.settings['SCRAPERANT_API_KEY'])
+                },
                 data={
                     "status": status,
                     "status_details": status_details,
                 },
-                verify=False,
-                auth=HTTPBasicAuth('info@scraperant.com', 'sokinok0')
+                verify=False
             )
             if response.status_code >= 400:
                 logging.error("ERROR updating status. API Response: {} - {}".format(
@@ -602,8 +604,10 @@ class ZillowSpider(Spider):
             # ToDo: Change Basic Auth for JWT or API key?
             response = requests.get(
                 self.post_back_url,
+                headers={
+                    'Authorization': 'Api-Key {}'.format(self.settings['SCRAPERANT_API_KEY'])
+                },
                 verify=False,
-                auth=HTTPBasicAuth('info@scraperant.com', 'sokinok0')
             )
             # Parse response to discover useful info
             response_data = response.json()
@@ -622,12 +626,14 @@ class ZillowSpider(Spider):
             # Send data to API
             response = requests.post(
                 save_results_url,
+                headers={
+                    'Authorization': 'Api-Key {}'.format(self.settings['SCRAPERANT_API_KEY'])
+                },
                 data={
                     "execution_log": execution_log_id,
                     "file": s3_file_key,
                 },
                 verify=False,
-                auth=HTTPBasicAuth('info@scraperant.com', 'sokinok0')
             )
             if response.status_code >= 400:
                 logging.error("ERROR posting back extracted data API Response: {} - {}".format(
