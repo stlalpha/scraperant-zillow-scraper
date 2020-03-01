@@ -56,6 +56,7 @@ class ZillowSpider(Spider):
         super().__init__(name=None, **kwargs)
         self.start_urls = [self.zillow_url]
         self.zillow_query_params = self.zillow_url.split('?')[1]
+        self.screenshot_url = ''
 
     def start_requests(self):
         if self.post_back_url:
@@ -100,6 +101,9 @@ class ZillowSpider(Spider):
             print("NO PAGES FOUND..RETRY")
             yield response.request.replace(dont_filter=True) # Trigger a new request
         else:
+            screenshot_url = response.headers.get('Screenshot_Url', "Header not found")
+            print("First page screenshot:\n {}".format(screenshot_url))
+            self.screenshot_url = screenshot_url  # Save it to report it to backend later
             if self.sample_mode:
                 logging.debug("SAMPLE MODE ON, PARSING ONLY FIRST PAGE..")
                 del pagination_links[1:]  # truncate to first link only
@@ -136,7 +140,8 @@ class ZillowSpider(Spider):
         # Get listings on this page
         listings = response.css('ul.photo-cards > li > article.list-card')
         print("Found {} listing in page: {}".format(len(listings), response.url))
-        print("Screen capture:\n {}".format(response.headers.get('Screenshot_Url', "Header not found")))
+        screenshot_url = response.headers.get('Screenshot_Url', "Header not found")
+        print("Page {} screenshot:\n {}".format(response.url, screenshot_url))
 
         if self.sample_mode:
             logging.debug("SAMPLE MODE ON, PARSING ONLY 3 LISTING ITEMS..")
@@ -601,7 +606,6 @@ class ZillowSpider(Spider):
 
     def _post_back_results(self):
         if self.post_back_url:
-            # ToDo: Change Basic Auth for JWT or API key?
             response = requests.get(
                 self.post_back_url,
                 headers={
@@ -632,6 +636,7 @@ class ZillowSpider(Spider):
                 data={
                     "execution_log": execution_log_id,
                     "file": s3_file_key,
+                    "screenshot_file": self.screenshot_url
                 },
                 verify=False,
             )
